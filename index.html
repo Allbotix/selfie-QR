@@ -5,41 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Selfie to QR</title>
 
- <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-
+  <!-- QRCode library -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
 
   <style>
-    /* ===== Base ===== */
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f5f6fa; padding: 20px; }
 
-    /* ===== Container ===== */
     .container { background: #fff; padding: 30px 40px; border-radius: 12px; box-shadow: 0 8px 20px rgba(0,0,0,0.1); max-width: 380px; width: 100%; text-align: center; }
-
     h2 { margin-bottom: 20px; color: #2f3640; font-weight: 600; font-size: 1.6rem; }
-
-    /* ===== Video & Preview ===== */
     video, canvas, img { width: 100%; height: auto; border-radius: 10px; border: 1px solid #dcdde1; margin-bottom: 15px; }
     #qr canvas { margin-top: 15px; }
-
-    /* ===== Buttons ===== */
     button { padding: 12px 20px; margin: 10px 5px 0 5px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; transition: 0.3s; }
     #captureBtn { background-color: #4cd137; color: #fff; }
     #captureBtn:hover { background-color: #44bd32; }
-    #uploadBtn { background-color: #487eb0; color: #fff; }
-    #uploadBtn:hover { background-color: #40739e; }
-    #uploadBtn:disabled { background-color: #dcdde1; cursor: not-allowed; }
-
-    /* ===== Status ===== */
+    #generateBtn { background-color: #487eb0; color: #fff; }
+    #generateBtn:hover { background-color: #40739e; }
+    #generateBtn:disabled { background-color: #dcdde1; cursor: not-allowed; }
+    #downloadBtn { background-color: #ffa502; color: #fff; }
+    #downloadBtn:hover { background-color: #e1a002; }
+    #downloadBtn:disabled { background-color: #dcdde1; cursor: not-allowed; }
     #status { margin-top: 10px; font-size: 0.95rem; color: #718093; }
-
-    /* ===== Responsive ===== */
-    @media (max-width: 420px) {
-      .container { padding: 20px; }
-    }
+    @media (max-width: 420px) { .container { padding: 20px; } }
   </style>
 </head>
-
 <body>
   <div class="container">
     <h2>Selfie → QR Generator</h2>
@@ -51,7 +40,8 @@
     <canvas id="canvas" width="320" height="240" style="display:none"></canvas>
 
     <button id="captureBtn">📸 Capture</button>
-    <button id="uploadBtn" disabled>Upload & Generate QR</button>
+    <button id="generateBtn" disabled>Generate QR</button>
+    <button id="downloadBtn" disabled>Download Selfie</button>
 
     <p id="status">Initializing camera...</p>
 
@@ -63,8 +53,11 @@
     const video = document.getElementById("video");
     const canvas = document.getElementById("canvas");
     const statusEl = document.getElementById("status");
-    let blob;
+    const generateBtn = document.getElementById("generateBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    let base64Image = null;
 
+    // Start camera
     async function startCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
@@ -72,50 +65,47 @@
         statusEl.textContent = "Camera is ready.";
       } catch (err) {
         statusEl.textContent = "Camera access denied!";
+        console.error(err);
       }
     }
-
     window.onload = startCamera;
 
+    // Capture selfie
     document.getElementById("captureBtn").onclick = () => {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      canvas.toBlob(b => {
-        blob = b;
-        document.getElementById("uploadBtn").disabled = false;
+      base64Image = canvas.toDataURL("image/jpeg");
 
-        // Preview
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(b);
-        document.getElementById("previewContainer").innerHTML = "";
-        document.getElementById("previewContainer").appendChild(img);
-      }, "image/jpeg");
+      // Preview
+      const img = document.createElement("img");
+      img.src = base64Image;
+      document.getElementById("previewContainer").innerHTML = "";
+      document.getElementById("previewContainer").appendChild(img);
+
+      statusEl.textContent = "Selfie captured!";
+      generateBtn.disabled = false;
+      downloadBtn.disabled = false;
     };
 
-    document.getElementById("uploadBtn").onclick = async () => {
-      if (!blob) return alert("Please capture first.");
+    // Generate QR code
+    generateBtn.onclick = () => {
+      if (!base64Image) return alert("Please capture first.");
+      QRCode.toCanvas(base64Image, { width: 200 }, (err, qrCanvas) => {
+        if (err) return console.error(err);
+        document.getElementById("qr").innerHTML = "";
+        document.getElementById("qr").appendChild(qrCanvas);
+        statusEl.textContent = "QR code generated!";
+      });
+    };
 
-      const fd = new FormData();
-      fd.append("selfie", blob, "selfie.jpg");
-
-      statusEl.textContent = "Uploading...";
-
-      try {
-        const res = await fetch("/upload", { method: "POST", body: fd });
-        const data = await res.json();
-        const imageUrl = data.url;
-
-        statusEl.textContent = "Scan the QR to view image";
-
-        QRCode.toCanvas(imageUrl, { width: 200 }, (err, qrCanvas) => {
-          if (err) return console.error(err);
-          document.getElementById("qr").innerHTML = "";
-          document.getElementById("qr").appendChild(qrCanvas);
-        });
-      } catch (err) {
-        statusEl.textContent = "Upload failed!";
-      }
+    // Download selfie
+    downloadBtn.onclick = () => {
+      if (!base64Image) return;
+      const link = document.createElement("a");
+      link.href = base64Image;
+      link.download = "selfie.jpg";
+      link.click();
     };
   </script>
 </body>
