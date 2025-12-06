@@ -1,48 +1,43 @@
+from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import os
-from flask import Flask, render_template, request, jsonify, send_from_directory
-from werkzeug.utils import secure_filename
-from uuid import uuid4
+import shutil
 
-app = Flask(__name__)
+app = FastAPI()
 
-# Upload folder
-UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Allow all CORS (frontend JS can access API)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
-@app.route("/")
+# Serve index.html at home
+@app.get("/")
 def home():
-    return render_template("index.html")
+    return FileResponse("index.html")
 
+# Handle upload
+@app.post("/upload")
+async def upload_file(selfie: UploadFile = File(...)):
+    file_path = os.path.join(UPLOAD_DIR, selfie.filename)
+    
+    with open(file_path, "wb") as f:
+        shutil.copyfileobj(selfie.file, f)
 
-@app.route("/upload", methods=["POST"])
-def upload():
-    if "selfie" not in request.files:
-        return jsonify({"error": "No file received"}), 400
+    # Return the path that frontend can use to generate QR code
+    # Using absolute URL if deployed or relative path
+    return JSONResponse({"message": "File uploaded", "url": f"/{file_path}"})
 
-    file = request.files["selfie"]
-    if file.filename == "":
-        return jsonify({"error": "Empty filename"}), 400
-
-    ext = file.filename.rsplit('.', 1)[-1]
-    filename = f"{uuid4()}.{ext}"
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
-    file.save(filepath)
-
-    # Generate URL
-    url = f"/uploads/{filename}"
-    full_url = request.host_url + "uploads/" + filename
-
-    return jsonify({"url": full_url})
-
-
-@app.route("/uploads/<filename>")
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+# Serve uploaded files
+@app.get("/uploads/{filename}")
+def get_uploaded_file(filename: str):
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    return JSONResponse({"error": "File not found"}, status_code=404)
