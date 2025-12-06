@@ -35,48 +35,45 @@ button { padding:12px 20px; margin:10px 5px 0 5px; border:none; border-radius:8p
 </div>
 
 <script>
-const video = document.getElementById("video");
-const canvas = document.getElementById("canvas");
-const statusEl = document.getElementById("status");
-let blob, imageUrl;
+const video=document.getElementById("video");
+const canvas=document.getElementById("canvas");
+const statusEl=document.getElementById("status");
+let blob, base64Image;
 
 // Start camera
 async function startCamera(){
     try {
-        const stream = await navigator.mediaDevices.getUserMedia({video:{width:320,height:240}});
-        video.srcObject = stream;
-        statusEl.textContent = "Camera is ready.";
-    } catch(err) {
-        statusEl.textContent = "Camera access denied!";
+        const stream=await navigator.mediaDevices.getUserMedia({video:{width:320,height:240}});
+        video.srcObject=stream;
+        statusEl.textContent="Camera is ready.";
+    }catch(err){
+        statusEl.textContent="Camera access denied!";
     }
 }
-window.onload = startCamera;
+window.onload=startCamera;
 
 // Capture button
-document.getElementById("captureBtn").onclick = ()=>{
-    const ctx = canvas.getContext("2d");
+document.getElementById("captureBtn").onclick=()=>{
+    const ctx=canvas.getContext("2d");
     ctx.drawImage(video,0,0,canvas.width,canvas.height);
-    canvas.toBlob(b=>{
-        blob=b;
-        imageUrl = URL.createObjectURL(b);
-        document.getElementById("generateBtn").disabled=false;
+    base64Image=canvas.toDataURL("image/jpeg");
+    document.getElementById("generateBtn").disabled=false;
 
-        // Preview
-        const img=document.createElement("img");
-        img.src=imageUrl;
-        document.getElementById("previewContainer").innerHTML="";
-        document.getElementById("previewContainer").appendChild(img);
-    }, "image/jpeg");
+    // Preview
+    const img=document.createElement("img");
+    img.src=base64Image;
+    document.getElementById("previewContainer").innerHTML="";
+    document.getElementById("previewContainer").appendChild(img);
 };
 
 // Generate QR button
-document.getElementById("generateBtn").onclick = ()=>{
-    if(!imageUrl) return alert("Capture first!");
-    QRCode.toCanvas(imageUrl,{width:200},(err, qrCanvas)=>{
+document.getElementById("generateBtn").onclick=()=>{
+    if(!base64Image) return alert("Capture first!");
+    QRCode.toCanvas(base64Image,{width:200},(err, qrCanvas)=>{
         if(err) return console.error(err);
         document.getElementById("qr").innerHTML="";
         document.getElementById("qr").appendChild(qrCanvas);
-        statusEl.textContent="QR generated!";
+        statusEl.textContent="QR generated! Scan to view image.";
     });
 };
 </script>
