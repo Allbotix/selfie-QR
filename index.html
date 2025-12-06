@@ -46,74 +46,77 @@
   </div>
 
   <script>
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const statusEl = document.getElementById("status");
-    let blob;
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+const statusEl = document.getElementById("status");
+let blob;
 
-    // Use your Imgur Client ID (register free: https://api.imgur.com/oauth2/addclient)
-    const IMGUR_CLIENT_ID = "YOUR_IMGUR_CLIENT_ID";
+// Replace this with your Imgur Client ID
+const IMGUR_CLIENT_ID = "YOUR_REAL_IMGUR_CLIENT_ID";
 
-    async function startCamera() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
-        video.srcObject = stream;
-        statusEl.textContent = "Camera is ready.";
-      } catch (err) {
-        statusEl.textContent = "Camera access denied!";
-      }
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240 } });
+    video.srcObject = stream;
+    statusEl.textContent = "Camera is ready.";
+  } catch (err) {
+    statusEl.textContent = "Camera access denied!";
+  }
+}
+
+window.onload = startCamera;
+
+document.getElementById("captureBtn").onclick = () => {
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  canvas.toBlob(b => {
+    blob = b;
+    document.getElementById("uploadBtn").disabled = false;
+
+    const img = document.createElement("img");
+    img.src = URL.createObjectURL(b);
+    document.getElementById("previewContainer").innerHTML = "";
+    document.getElementById("previewContainer").appendChild(img);
+  }, "image/jpeg");
+};
+
+document.getElementById("uploadBtn").onclick = async () => {
+  if (!blob) return alert("Please capture first.");
+
+  const formData = new FormData();
+  formData.append("image", blob);
+
+  statusEl.textContent = "Uploading to Imgur...";
+
+  try {
+    const res = await fetch("https://api.imgur.com/3/image", {
+      method: "POST",
+      headers: { Authorization: `Client-ID ${IMGUR_CLIENT_ID}` },
+      body: formData
+    });
+
+    const data = await res.json();
+    if (data.success) {
+      const imageUrl = data.data.link; // public URL
+      statusEl.textContent = "QR generated! Scan to view image.";
+
+      // Generate QR
+      QRCode.toCanvas(imageUrl, { width: 200 }, (err, qrCanvas) => {
+        if (err) return console.error(err);
+        document.getElementById("qr").innerHTML = "";
+        document.getElementById("qr").appendChild(qrCanvas);
+      });
+    } else {
+      statusEl.textContent = "Upload failed!";
+      console.error(data);
     }
+  } catch (err) {
+    statusEl.textContent = "Upload failed!";
+    console.error(err);
+  }
+};
+</script>
 
-    window.onload = startCamera;
-
-    // Capture selfie
-    document.getElementById("captureBtn").onclick = () => {
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(b => {
-        blob = b;
-        document.getElementById("uploadBtn").disabled = false;
-
-        // Preview
-        const img = document.createElement("img");
-        img.src = URL.createObjectURL(b);
-        document.getElementById("previewContainer").innerHTML = "";
-        document.getElementById("previewContainer").appendChild(img);
-      }, "image/jpeg");
-    };
-
-    // Upload to Imgur and generate QR
-    document.getElementById("uploadBtn").onclick = async () => {
-      if (!blob) return alert("Please capture first.");
-
-      const formData = new FormData();
-      formData.append("image", blob);
-
-      statusEl.textContent = "Uploading to Imgur...";
-
-      try {
-        const res = await fetch("https://api.imgur.com/3/image", {
-          method: "POST",
-          headers: { Authorization: `Client-ID ${IMGUR_CLIENT_ID}` },
-          body: formData
-        });
-
-        const data = await res.json();
-        const imageUrl = data.data.link; // public image URL
-
-        statusEl.textContent = "QR generated! Scan to view image.";
-
-        QRCode.toCanvas(imageUrl, { width: 200 }, (err, qrCanvas) => {
-          if (err) return console.error(err);
-          document.getElementById("qr").innerHTML = "";
-          document.getElementById("qr").appendChild(qrCanvas);
-        });
-      } catch (err) {
-        statusEl.textContent = "Upload failed!";
-        console.error(err);
-      }
-    };
-  </script>
 </body>
 </html>
